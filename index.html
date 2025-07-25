@@ -1,0 +1,1645 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Simple Notes</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: system-ui, sans-serif;
+    }
+
+    .container {
+      display: flex;
+      height: 100vh;
+    }
+
+    .sidebar {
+      width: 30%;
+      background: #2c3e50;
+      color: white;
+      border-right: 1px solid #1a2530;
+      overflow-y: auto;
+    }
+
+    .sidebar-header {
+      padding: 15px;
+      border-bottom: 1px solid #34495e;
+    }
+
+    .button-group {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .btn {
+      background: #3498db;
+      color: white;
+      border: none;
+      padding: 8px 12px;
+      cursor: pointer;
+      border-radius: 4px;
+      font-size: 12px;
+      flex: 1;
+    }
+
+    .btn:hover {
+      background: #2980b9;
+    }
+
+    .btn-secondary {
+      background: #95a5a6;
+    }
+
+    .btn-secondary:hover {
+      background: #7f8c8d;
+    }
+
+    #notes-section {
+      border-bottom: 1px solid #34495e;
+    }
+
+    .section-header {
+      padding: 12px 15px;
+      background: #2c3e50;
+      font-size: 12px;
+      color: #bdc3c7;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .note-item {
+      padding: 12px 15px;
+      border-bottom: 1px solid #34495e;
+      cursor: pointer;
+      transition: background 0.2s;
+      position: relative;
+    }
+
+    .note-item:hover {
+      background: #34495e;
+    }
+
+    .note-item.active {
+      background: #34495e;
+      border-left: 3px solid #3498db;
+    }
+
+    .note-item.importance-high {
+      border-left: 3px solid #e74c3c;
+    }
+
+    .note-item.importance-medium {
+      border-left: 3px solid #f39c12;
+    }
+
+    .note-item.importance-low {
+      border-left: 3px solid #27ae60;
+    }
+
+    .note-item.active.importance-high {
+      border-left: 3px solid #c0392b;
+    }
+
+    .note-item.active.importance-medium {
+      border-left: 3px solid #d68910;
+    }
+
+    .note-item.active.importance-low {
+      border-left: 3px solid #229954;
+    }
+
+    .importance-dot {
+      position: absolute;
+      right: 8px;
+      top: 12px;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+    }
+
+    .importance-dot.high {
+      background: #e74c3c;
+    }
+
+    .importance-dot.medium {
+      background: #f39c12;
+    }
+
+    .importance-dot.low {
+      background: #27ae60;
+    }
+
+    .reminder-indicator {
+      position: absolute;
+      right: 8px;
+      bottom: 8px;
+      font-size: 10px;
+      color: #f39c12;
+    }
+
+    .reminder-overdue {
+      color: #e74c3c;
+    }
+
+    .note-title {
+      font-weight: 500;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .note-subtitle {
+      font-size: 11px;
+      color: #bdc3c7;
+      margin-top: 2px;
+    }
+
+    .trash-section {
+      border-bottom: 1px solid #34495e;
+    }
+
+    .trash-item {
+      padding: 12px 15px;
+      border-bottom: 1px solid #34495e;
+      cursor: pointer;
+      transition: background 0.2s;
+      opacity: 0.7;
+      position: relative;
+    }
+
+    .trash-item:hover {
+      background: #34495e;
+    }
+
+    .days-left {
+      position: absolute;
+      right: 8px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 10px;
+      color: #e67e22;
+    }
+
+    .editor {
+      width: 70%;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .note-title-field {
+      background: #f8f9fa;
+      border: none;
+      border-bottom: 2px solid #e9ecef;
+      padding: 15px 20px;
+      font-size: 18px;
+      font-weight: 600;
+      color: #495057;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .note-title-field:focus {
+      border-bottom-color: #007bff;
+    }
+
+    .note-title-field::placeholder {
+      color: #adb5bd;
+      font-weight: normal;
+    }
+
+    .editor-toolbar {
+      background: #f8f9fa;
+      border-bottom: 1px solid #e9ecef;
+      padding: 8px 15px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      transition: all 0.3s ease;
+    }
+
+    .editor-toolbar.hidden {
+      display: none;
+    }
+
+    .toolbar-group {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+    }
+
+    .toolbar-separator {
+      width: 1px;
+      height: 20px;
+      background: #dee2e6;
+      margin: 0 4px;
+    }
+
+    .toolbar-btn {
+      background: none;
+      border: 1px solid transparent;
+      padding: 6px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      color: #495057;
+      transition: all 0.2s;
+      min-width: 32px;
+    }
+
+    .toolbar-btn:hover {
+      background: #e9ecef;
+      border-color: #ced4da;
+    }
+
+    .toolbar-btn.active {
+      background: #007bff;
+      color: white;
+      border-color: #007bff;
+    }
+
+    .font-size-select {
+      border: 1px solid #ced4da;
+      border-radius: 4px;
+      padding: 4px 8px;
+      font-size: 12px;
+      background: white;
+      cursor: pointer;
+    }
+
+    .toggle-formatting {
+      position: absolute;
+      top: 10px;
+      right: 50px;
+      background: #6c757d;
+      color: white;
+      border: none;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      cursor: pointer;
+      z-index: 10;
+    }
+
+    .toggle-formatting:hover {
+      background: #5a6268;
+    }
+
+    #note-editor {
+      width: 100%;
+      flex: 1;
+      padding: 20px;
+      border: none;
+      resize: none;
+      font-size: 16px;
+      line-height: 1.6;
+      font-family: system-ui, sans-serif;
+      box-sizing: border-box;
+      overflow-y: auto;
+    }
+
+    #note-editor:focus {
+      outline: none;
+    }
+
+    .rich-editor {
+      min-height: 100%;
+    }
+
+    .rich-editor p {
+      margin: 0 0 1em 0;
+    }
+
+    .rich-editor p:last-child {
+      margin-bottom: 0;
+    }
+
+    .rich-editor ul, .rich-editor ol {
+      margin: 0.5em 0;
+      padding-left: 2em;
+    }
+
+    .rich-editor li {
+      margin: 0.25em 0;
+    }
+
+    .rich-editor[data-placeholder]:empty::before {
+      content: attr(data-placeholder);
+      color: #6c757d;
+      font-style: italic;
+    }
+
+    .rich-editor:focus[data-placeholder]:empty::before {
+      content: "";
+    }
+
+    .shortcut-info {
+      position: absolute;
+      bottom: 10px;
+      right: 15px;
+      font-size: 12px;
+      color: #7f8c8d;
+    }
+
+    /* Context Menu Styles */
+    .context-menu {
+      position: fixed;
+      background: white;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      padding: 4px 0;
+      min-width: 160px;
+      z-index: 1000;
+      display: none;
+    }
+
+    .context-menu-item {
+      padding: 8px 16px;
+      cursor: pointer;
+      font-size: 14px;
+      color: #333;
+      transition: background 0.2s;
+    }
+
+    .context-menu-item:hover {
+      background: #f0f0f0;
+    }
+
+    .context-menu-item.disabled {
+      color: #999;
+      cursor: default;
+    }
+
+    .context-menu-item.disabled:hover {
+      background: transparent;
+    }
+
+    .context-menu-divider {
+      height: 1px;
+      background: #eee;
+      margin: 4px 0;
+    }
+
+    .priority-row {
+      display: flex;
+      justify-content: space-around;
+      padding: 8px 16px;
+      background: #f8f9fa;
+      border-top: 1px solid #eee;
+      border-bottom: 1px solid #eee;
+    }
+
+    .priority-icon {
+      cursor: pointer;
+      font-size: 16px;
+      padding: 6px 8px;
+      border-radius: 4px;
+      transition: background 0.2s;
+      position: relative;
+    }
+
+    .priority-icon:hover {
+      background: #e9ecef;
+    }
+
+    .priority-icon:hover::after {
+      content: attr(data-label);
+      position: absolute;
+      bottom: -25px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.8);
+      color: white;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 10px;
+      white-space: nowrap;
+      z-index: 1001;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Left Column (Notes Browser) -->
+    <div class="sidebar">
+      <div class="sidebar-header">
+        <div class="button-group">
+          <button id="new-note" class="btn" aria-label="Create new note">+ New Note</button>
+          <button id="empty-trash" class="btn btn-secondary" aria-label="Empty trash permanently">🗑️ Empty Trash</button>
+        </div>
+      </div>
+      
+      <!-- Notes Section -->
+      <div id="notes-section">
+        <div class="section-header">
+          <span>Notes</span>
+          <span id="notes-count">0</span>
+        </div>
+        <div id="notes-list"></div>
+      </div>
+      
+      <!-- Trash Section -->
+      <div id="trash-section" class="trash-section">
+        <div class="section-header">
+          <span>Trash</span>
+          <span id="trash-count">0</span>
+        </div>
+        <div id="trash-list"></div>
+      </div>
+    </div>
+    
+    <!-- Right Column (Editor) -->
+    <div class="editor">
+      <button class="toggle-formatting" id="toggle-formatting" aria-label="Toggle text formatting toolbar">📝 Formatting</button>
+      
+      <input type="text" class="note-title-field" id="note-title-field" placeholder="Note title..." aria-label="Note title">
+      
+      <div class="editor-toolbar" id="editor-toolbar">
+        <div class="toolbar-group">
+          <button class="toolbar-btn" id="bold-btn" title="Bold (Ctrl+B)" aria-label="Make text bold"><strong>B</strong></button>
+          <button class="toolbar-btn" id="italic-btn" title="Italic (Ctrl+I)" aria-label="Make text italic"><em>I</em></button>
+          <button class="toolbar-btn" id="underline-btn" title="Underline (Ctrl+U)" aria-label="Underline text"><u>U</u></button>
+        </div>
+        
+        <div class="toolbar-separator"></div>
+        
+        <div class="toolbar-group">
+          <select class="font-size-select" id="font-size-select" title="Font Size" aria-label="Select font size">
+            <option value="12px">Small</option>
+            <option value="16px" selected>Normal</option>
+            <option value="20px">Large</option>
+            <option value="24px">Larger</option>
+          </select>
+        </div>
+        
+        <div class="toolbar-separator"></div>
+        
+        <div class="toolbar-group">
+          <button class="toolbar-btn" id="align-left-btn" title="Align Left" aria-label="Align text left">⬅</button>
+          <button class="toolbar-btn" id="align-center-btn" title="Align Center" aria-label="Center align text">⬌</button>
+          <button class="toolbar-btn" id="align-right-btn" title="Align Right" aria-label="Align text right">➡</button>
+        </div>
+        
+        <div class="toolbar-separator"></div>
+        
+        <div class="toolbar-group">
+          <button class="toolbar-btn" id="bullet-btn" title="Bullet List" aria-label="Create bullet list">• List</button>
+          <button class="toolbar-btn" id="date-btn" title="Insert Today's Date" aria-label="Insert today's date">📅 Date</button>
+        </div>
+        
+        <div class="toolbar-separator"></div>
+        
+        <div class="toolbar-group">
+          <button class="toolbar-btn" id="priority-normal" title="Normal Priority" aria-label="Set normal priority">⚪</button>
+          <span style="color: #ccc;">|</span>
+          <button class="toolbar-btn" id="priority-low" title="Low Priority" aria-label="Set low priority">🟢</button>
+          <span style="color: #ccc;">|</span>
+          <button class="toolbar-btn" id="priority-medium" title="Medium Priority" aria-label="Set medium priority">🟠</button>
+          <span style="color: #ccc;">|</span>
+          <button class="toolbar-btn" id="priority-high" title="High Priority" aria-label="Set high priority">🔴</button>
+        </div>
+        
+        <div class="toolbar-separator"></div>
+        
+        <div class="toolbar-group">
+          <input type="date" id="reminder-date" class="font-size-select" title="Set Reminder" aria-label="Set reminder date" style="width: 140px;">
+        </div>
+        
+        <div class="toolbar-separator"></div>
+        
+        <div class="toolbar-group">
+          <button class="toolbar-btn" id="clear-btn" title="Clear Formatting" aria-label="Clear text formatting">Clear</button>
+        </div>
+      </div>
+      
+      <div id="note-editor" class="rich-editor" contenteditable="true" data-placeholder="Create a new note to get started..." aria-label="Note content editor"></div>
+      <div class="shortcut-info">Ctrl+Backspace to delete • Right-click for menu • Auto-saves</div>
+    </div>
+  </div>
+
+  <!-- Context Menu -->
+  <div id="context-menu" class="context-menu">
+    <!-- Note-specific options -->
+    <div class="context-menu-item" id="ctx-date">📅 Insert Today's Date</div>
+    <div class="context-menu-item" id="ctx-remind">🔔 Remind Me</div>
+    <div class="context-menu-item" id="ctx-delete-note">🗑️ Delete Note</div>
+    <div class="context-menu-divider"></div>
+    <div class="priority-row" id="priority-row">
+      <div class="priority-icon" id="ctx-priority-none" data-label="Normal">⚪</div>
+      <div class="priority-icon" id="ctx-priority-low" data-label="Low">🟢</div>
+      <div class="priority-icon" id="ctx-priority-medium" data-label="Medium">🟠</div>
+      <div class="priority-icon" id="ctx-priority-high" data-label="High">🔴</div>
+    </div>
+    
+    <!-- Trash-specific options -->
+    <div class="context-menu-item" id="ctx-restore-note" style="display: none;">♻️ Restore Note</div>
+    <div class="context-menu-item" id="ctx-delete-permanently" style="display: none;">⚠️ Delete Permanently</div>
+  </div>
+
+  <script>
+    // DOM Elements
+    const notesList = document.getElementById('notes-list');
+    const trashList = document.getElementById('trash-list');
+    const noteEditor = document.getElementById('note-editor');
+    const noteTitleField = document.getElementById('note-title-field');
+    const newNoteBtn = document.getElementById('new-note');
+    const emptyTrashBtn = document.getElementById('empty-trash');
+    const editorToolbar = document.getElementById('editor-toolbar');
+    const toggleFormattingBtn = document.getElementById('toggle-formatting');
+    const contextMenu = document.getElementById('context-menu');
+    const notesCount = document.getElementById('notes-count');
+    const trashCount = document.getElementById('trash-count');
+
+    // Toolbar elements
+    const boldBtn = document.getElementById('bold-btn');
+    const italicBtn = document.getElementById('italic-btn');
+    const underlineBtn = document.getElementById('underline-btn');
+    const fontSizeSelect = document.getElementById('font-size-select');
+    const alignLeftBtn = document.getElementById('align-left-btn');
+    const alignCenterBtn = document.getElementById('align-center-btn');
+    const alignRightBtn = document.getElementById('align-right-btn');
+    const bulletBtn = document.getElementById('bullet-btn');
+    const dateBtn = document.getElementById('date-btn');
+    const priorityNormal = document.getElementById('priority-normal');
+    const priorityLow = document.getElementById('priority-low');
+    const priorityMedium = document.getElementById('priority-medium');
+    const priorityHigh = document.getElementById('priority-high');
+    const reminderDate = document.getElementById('reminder-date');
+    const clearBtn = document.getElementById('clear-btn');
+
+    // Context menu elements
+    const ctxDate = document.getElementById('ctx-date');
+    const ctxRemind = document.getElementById('ctx-remind');
+    const ctxDeleteNote = document.getElementById('ctx-delete-note');
+    const priorityRow = document.getElementById('priority-row');
+    const ctxPriorityNone = document.getElementById('ctx-priority-none');
+    const ctxPriorityLow = document.getElementById('ctx-priority-low');
+    const ctxPriorityMedium = document.getElementById('ctx-priority-medium');
+    const ctxPriorityHigh = document.getElementById('ctx-priority-high');
+    const ctxRestoreNote = document.getElementById('ctx-restore-note');
+    const ctxDeletePermanently = document.getElementById('ctx-delete-permanently');
+
+    // App state
+    let formattingEnabled = true;
+    let currentNoteId = null;
+    let contextNoteId = null;
+    let contextTrashId = null;
+    let savedFormattingContent = {}; // Store rich content when formatting is disabled
+
+    // In-memory storage
+    let appData = {
+      notes: {},
+      trash: {}
+    };
+
+    // === DATA PERSISTENCE FUNCTIONS ===
+    
+    function saveData() {
+      try {
+        localStorage.setItem('simpleNotesData', JSON.stringify(appData));
+        console.log('Data saved to localStorage');
+      } catch (error) {
+        console.error('Failed to save data to localStorage:', error);
+      }
+    }
+
+    function loadData() {
+      try {
+        const savedData = localStorage.getItem('simpleNotesData');
+        if (savedData) {
+          appData = JSON.parse(savedData);
+          console.log('Data loaded from localStorage');
+          return true;
+        }
+      } catch (error) {
+        console.error('Failed to load data from localStorage:', error);
+      }
+      return false;
+    }
+
+    // Clean up trash items older than 7 days
+    function cleanupOldTrash() {
+      const weekAgo = new Date(Date.now() - (7 * 24 * 60 * 60 * 1000));
+      let deletedCount = 0;
+      
+      console.log('Running trash cleanup, checking items older than:', weekAgo.toLocaleDateString());
+      
+      Object.keys(appData.trash).forEach(noteId => {
+        const note = appData.trash[noteId];
+        if (note.deletedAt) {
+          const deleteDate = new Date(note.deletedAt);
+          console.log(`Checking note "${note.title || 'Untitled'}" deleted on:`, deleteDate.toLocaleDateString());
+          
+          if (deleteDate < weekAgo) {
+            console.log('Permanently deleting old note:', note.title || 'Untitled');
+            delete appData.trash[noteId];
+            deletedCount++;
+          }
+        } else {
+          // If no deletedAt timestamp, add one (for backward compatibility)
+          note.deletedAt = new Date().toISOString();
+          console.log('Added missing deletedAt timestamp to note:', note.title || 'Untitled');
+        }
+      });
+      
+      if (deletedCount > 0) {
+        console.log(`Auto-cleanup: Permanently deleted ${deletedCount} old notes from trash`);
+        saveData(); // Save after cleanup
+        loadTrash();
+      } else {
+        console.log('No old notes found for cleanup');
+      }
+      
+      return deletedCount;
+    }
+
+    // Initialize
+    if (!loadData()) {
+      // No saved data, start fresh
+      console.log('No saved data found, starting fresh');
+    }
+    loadNotes();
+    loadTrash();
+    cleanupOldTrash();
+
+    // Create new note
+    newNoteBtn.addEventListener('click', () => {
+      const id = Date.now().toString();
+      
+      appData.notes[id] = {
+        id: id,
+        title: "",
+        content: "",
+        created: new Date().toISOString(),
+        updated: new Date().toISOString(),
+        importance: "",
+        reminder: null
+      };
+      
+      saveData(); // Save after creating note
+      loadNotes();
+      openNote(id);
+    });
+
+    // Empty trash
+    emptyTrashBtn.addEventListener('click', (e) => {
+      // If holding Shift key, run cleanup test (delete items older than 1 minute for testing)
+      if (e.shiftKey) {
+        const oneMinuteAgo = new Date(Date.now() - (1 * 60 * 1000));
+        let testDeletedCount = 0;
+        
+        Object.keys(appData.trash).forEach(noteId => {
+          const note = appData.trash[noteId];
+          if (note.deletedAt && new Date(note.deletedAt) < oneMinuteAgo) {
+            delete appData.trash[noteId];
+            testDeletedCount++;
+          }
+        });
+        
+        if (testDeletedCount > 0) {
+          console.log(`Test cleanup: Deleted ${testDeletedCount} notes older than 1 minute`);
+          saveData();
+          loadTrash();
+        } else {
+          console.log('Test cleanup: No notes older than 1 minute found');
+        }
+        return;
+      }
+      
+      // Normal empty trash functionality
+      if (Object.keys(appData.trash).length === 0) {
+        alert("Trash is already empty.");
+        return;
+      }
+      
+      if (confirm("Permanently delete all notes in trash? This cannot be undone.")) {
+        appData.trash = {};
+        saveData(); // Save after emptying trash
+        loadTrash();
+      }
+    });
+
+    // Open note
+    function openNote(id) {
+      currentNoteId = id;
+      const note = appData.notes[id];
+      if (note) {
+        noteTitleField.value = note.title || "";
+        noteEditor.innerHTML = note.content || "";
+        if (!note.content) {
+          noteEditor.setAttribute('data-placeholder', 'Start typing your note here...');
+        } else {
+          noteEditor.removeAttribute('data-placeholder');
+        }
+        
+        // Update priority buttons and reminder controls
+        updatePriorityButtons(note.importance || "");
+        reminderDate.value = note.reminder || "";
+      }
+      noteTitleField.focus();
+      
+      // Highlight active note
+      document.querySelectorAll('.note-item').forEach(item => {
+        item.classList.toggle('active', item.dataset.id === id);
+      });
+    }
+
+    function updatePriorityButtons(priority) {
+      // Remove active class from all priority buttons
+      priorityNormal.classList.remove('active');
+      priorityLow.classList.remove('active');
+      priorityMedium.classList.remove('active');
+      priorityHigh.classList.remove('active');
+      
+      // Add active class to current priority
+      switch(priority) {
+        case 'low':
+          priorityLow.classList.add('active');
+          break;
+        case 'medium':
+          priorityMedium.classList.add('active');
+          break;
+        case 'high':
+          priorityHigh.classList.add('active');
+          break;
+        default:
+          priorityNormal.classList.add('active');
+      }
+    }
+
+    // Save title on edit
+    noteTitleField.addEventListener('input', () => {
+      if (!currentNoteId || !appData.notes[currentNoteId]) return;
+      
+      appData.notes[currentNoteId].title = noteTitleField.value;
+      appData.notes[currentNoteId].updated = new Date().toISOString();
+      
+      saveData(); // Save after title change
+      // Update display
+      loadNotes();
+    });
+
+    // Save on edit (auto-save)
+    noteEditor.addEventListener('input', () => {
+      if (!currentNoteId || !appData.notes[currentNoteId]) return;
+      
+      appData.notes[currentNoteId].content = noteEditor.innerHTML;
+      appData.notes[currentNoteId].updated = new Date().toISOString();
+      
+      // Handle placeholder
+      if (noteEditor.innerHTML.trim() === '') {
+        noteEditor.setAttribute('data-placeholder', 'Start typing your note here...');
+      } else {
+        noteEditor.removeAttribute('data-placeholder');
+      }
+      
+      saveData(); // Save after content change
+      // Update display
+      loadNotes();
+    });
+
+    // Handle placeholder styling
+    noteEditor.addEventListener('focus', () => {
+      if (noteEditor.innerHTML.trim() === '') {
+        noteEditor.removeAttribute('data-placeholder');
+      }
+    });
+
+    noteEditor.addEventListener('blur', () => {
+      if (noteEditor.innerHTML.trim() === '') {
+        noteEditor.setAttribute('data-placeholder', 'Start typing your note here...');
+      }
+    });
+
+    // Delete note (Ctrl+Backspace)
+    noteEditor.addEventListener('keydown', (e) => {
+      if (e.ctrlKey && e.key === 'Backspace' && currentNoteId) {
+        moveToTrash(currentNoteId);
+      }
+      
+      // Formatting shortcuts
+      if (formattingEnabled) {
+        if (e.ctrlKey && e.key === 'b') {
+          e.preventDefault();
+          toggleFormat('bold');
+        }
+        if (e.ctrlKey && e.key === 'i') {
+          e.preventDefault();
+          toggleFormat('italic');
+        }
+        if (e.ctrlKey && e.key === 'u') {
+          e.preventDefault();
+          toggleFormat('underline');
+        }
+      }
+    });
+
+    // === FORMATTING FUNCTIONS ===
+
+    // Toggle formatting toolbar
+    toggleFormattingBtn.addEventListener('click', () => {
+      formattingEnabled = !formattingEnabled;
+      editorToolbar.classList.toggle('hidden', !formattingEnabled);
+      
+      if (!formattingEnabled) {
+        // Save rich content before converting to plain text
+        if (currentNoteId && appData.notes[currentNoteId]) {
+          savedFormattingContent[currentNoteId] = noteEditor.innerHTML;
+          // Convert to plain text but preserve line breaks
+          const plainText = noteEditor.innerText;
+          noteEditor.innerHTML = plainText.replace(/\n/g, '<br>');
+          // Update the note data with plain text version
+          appData.notes[currentNoteId].content = noteEditor.innerHTML;
+          saveData();
+        }
+        toggleFormattingBtn.textContent = '📝 Enable Formatting';
+      } else {
+        // Restore rich content if available
+        if (currentNoteId && savedFormattingContent[currentNoteId]) {
+          noteEditor.innerHTML = savedFormattingContent[currentNoteId];
+          // Update the note data with restored rich content
+          if (appData.notes[currentNoteId]) {
+            appData.notes[currentNoteId].content = noteEditor.innerHTML;
+            saveData();
+          }
+          // Clean up saved content
+          delete savedFormattingContent[currentNoteId];
+        }
+        toggleFormattingBtn.textContent = '📝 Formatting';
+      }
+    });
+
+    // Format commands
+    function execCommand(command, value = null) {
+      document.execCommand(command, false, value);
+      noteEditor.focus();
+      updateToolbarState();
+    }
+
+    function toggleFormat(format) {
+      execCommand(format);
+    }
+
+    // Toolbar button events
+    boldBtn.addEventListener('click', () => toggleFormat('bold'));
+    italicBtn.addEventListener('click', () => toggleFormat('italic'));
+    underlineBtn.addEventListener('click', () => toggleFormat('underline'));
+
+    fontSizeSelect.addEventListener('change', (e) => {
+      const fontSize = e.target.value;
+      const selection = window.getSelection();
+      
+      if (selection.rangeCount > 0 && !selection.isCollapsed) {
+        // If text is selected, wrap it in a span with the font size
+        const range = selection.getRangeAt(0);
+        const selectedContent = range.extractContents();
+        const span = document.createElement('span');
+        span.style.fontSize = fontSize;
+        span.appendChild(selectedContent);
+        range.insertNode(span);
+        
+        // Clear selection
+        selection.removeAllRanges();
+      } else {
+        // If no selection, set font size for future typed content
+        document.execCommand('fontSize', false, '7'); // Use largest size as base
+        const fontElements = noteEditor.querySelectorAll('font[size="7"]');
+        fontElements.forEach(font => {
+          const span = document.createElement('span');
+          span.style.fontSize = fontSize;
+          span.innerHTML = font.innerHTML;
+          font.parentNode.replaceChild(span, font);
+        });
+      }
+      
+      noteEditor.focus();
+      // Trigger save
+      noteEditor.dispatchEvent(new Event('input'));
+    });
+
+    alignLeftBtn.addEventListener('click', () => execCommand('justifyLeft'));
+    alignCenterBtn.addEventListener('click', () => execCommand('justifyCenter'));
+    alignRightBtn.addEventListener('click', () => execCommand('justifyRight'));
+
+    bulletBtn.addEventListener('click', () => execCommand('insertUnorderedList'));
+
+    // Date insertion
+    dateBtn.addEventListener('click', () => {
+      const today = new Date().toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+      
+      const selection = window.getSelection();
+      if (selection.rangeCount > 0) {
+        const range = selection.getRangeAt(0);
+        range.deleteContents();
+        range.insertNode(document.createTextNode(today));
+        range.collapse(false);
+        selection.removeAllRanges();
+        selection.addRange(range);
+      }
+      
+      noteEditor.focus();
+      // Trigger save
+      noteEditor.dispatchEvent(new Event('input'));
+    });
+
+    // Priority button events
+    priorityNormal.addEventListener('click', () => {
+      if (currentNoteId && appData.notes[currentNoteId]) {
+        appData.notes[currentNoteId].importance = "";
+        appData.notes[currentNoteId].updated = new Date().toISOString();
+        saveData(); // Save after priority change
+        updatePriorityButtons("");
+        loadNotes();
+      }
+    });
+
+    priorityLow.addEventListener('click', () => {
+      if (currentNoteId && appData.notes[currentNoteId]) {
+        appData.notes[currentNoteId].importance = "low";
+        appData.notes[currentNoteId].updated = new Date().toISOString();
+        saveData(); // Save after priority change
+        updatePriorityButtons("low");
+        loadNotes();
+      }
+    });
+
+    priorityMedium.addEventListener('click', () => {
+      if (currentNoteId && appData.notes[currentNoteId]) {
+        appData.notes[currentNoteId].importance = "medium";
+        appData.notes[currentNoteId].updated = new Date().toISOString();
+        saveData(); // Save after priority change
+        updatePriorityButtons("medium");
+        loadNotes();
+      }
+    });
+
+    priorityHigh.addEventListener('click', () => {
+      if (currentNoteId && appData.notes[currentNoteId]) {
+        appData.notes[currentNoteId].importance = "high";
+        appData.notes[currentNoteId].updated = new Date().toISOString();
+        saveData(); // Save after priority change
+        updatePriorityButtons("high");
+        loadNotes();
+      }
+    });
+
+    // Reminder change
+    reminderDate.addEventListener('change', () => {
+      if (currentNoteId && appData.notes[currentNoteId]) {
+        appData.notes[currentNoteId].reminder = reminderDate.value;
+        appData.notes[currentNoteId].updated = new Date().toISOString();
+        saveData(); // Save after reminder change
+        loadNotes();
+      }
+    });
+
+    clearBtn.addEventListener('click', () => {
+      // More comprehensive format clearing
+      execCommand('removeFormat');
+      execCommand('unlink');
+      
+      // Remove any remaining style attributes and non-semantic tags
+      const selection = window.getSelection();
+      if (selection.rangeCount > 0 && !selection.isCollapsed) {
+        const range = selection.getRangeAt(0);
+        const contents = range.extractContents();
+        
+        // Create a temporary div to clean the content
+        const tempDiv = document.createElement('div');
+        tempDiv.appendChild(contents);
+        
+        // Remove style attributes and unwrap styled elements
+        const allElements = tempDiv.querySelectorAll('*');
+        allElements.forEach(el => {
+          el.removeAttribute('style');
+          el.removeAttribute('face');
+          el.removeAttribute('size');
+          el.removeAttribute('color');
+          
+          // Unwrap font tags and other styling elements
+          if (['FONT', 'SPAN'].includes(el.tagName) && !el.hasAttributes()) {
+            const parent = el.parentNode;
+            while (el.firstChild) {
+              parent.insertBefore(el.firstChild, el);
+            }
+            parent.removeChild(el);
+          }
+        });
+        
+        range.insertNode(tempDiv.firstChild || document.createTextNode(tempDiv.textContent));
+      }
+      
+      noteEditor.focus();
+      // Trigger save
+      noteEditor.dispatchEvent(new Event('input'));
+    });
+
+    // Update toolbar state based on cursor position
+    function updateToolbarState() {
+      if (!formattingEnabled) return;
+      
+      boldBtn.classList.toggle('active', document.queryCommandState('bold'));
+      italicBtn.classList.toggle('active', document.queryCommandState('italic'));
+      underlineBtn.classList.toggle('active', document.queryCommandState('underline'));
+    }
+
+    // Update toolbar on selection change
+    document.addEventListener('selectionchange', updateToolbarState);
+
+    // Prevent default drag behavior on editor
+    noteEditor.addEventListener('dragover', (e) => e.preventDefault());
+    noteEditor.addEventListener('drop', (e) => e.preventDefault());
+
+    // Load and display notes
+    function loadNotes() {
+      notesList.innerHTML = '';
+      
+      const notes = Object.values(appData.notes)
+        .sort((a, b) => new Date(b.updated || b.created) - new Date(a.updated || a.created));
+      
+      notesCount.textContent = notes.length;
+      
+      if (notes.length === 0) {
+        noteTitleField.value = "";
+        noteEditor.setAttribute('data-placeholder', 'Create a new note to get started...');
+        return;
+      }
+      
+      notes.forEach(note => {
+        const noteEl = document.createElement('div');
+        noteEl.className = `note-item ${note.id === currentNoteId ? 'active' : ''} ${note.importance ? `importance-${note.importance}` : ''}`;
+        noteEl.dataset.id = note.id;
+        
+        // Use the dedicated title field or fall back to content extraction
+        let title = note.title && note.title.trim() ? note.title.trim() : "Untitled Note";
+        if (title.length > 30) title = title.substring(0, 30) + "...";
+        
+        // Extract preview from content
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = note.content || '';
+        const plainText = tempDiv.textContent || tempDiv.innerText || '';
+        const preview = plainText.substring(0, 40);
+        
+        // Create subtitle with date info and preview
+        const createdDate = new Date(note.created).toLocaleDateString();
+        const updatedDate = new Date(note.updated || note.created).toLocaleDateString();
+        const dateInfo = createdDate === updatedDate ? 
+          `Created ${createdDate}` : 
+          `Updated ${updatedDate}`;
+        
+        const subtitle = preview ? `${preview}... • ${dateInfo}` : dateInfo;
+        
+        // Build importance dot HTML
+        const importanceDot = note.importance ? 
+          `<div class="importance-dot ${note.importance}"></div>` : '';
+        
+        // Build reminder indicator HTML
+        let reminderIndicator = '';
+        if (note.reminder) {
+          const reminderDate = new Date(note.reminder);
+          const today = new Date();
+          const diffTime = reminderDate - today;
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          
+          if (diffDays < 0) {
+            reminderIndicator = `<div class="reminder-indicator reminder-overdue">⚠️ Overdue</div>`;
+          } else if (diffDays === 0) {
+            reminderIndicator = `<div class="reminder-indicator">📅 Today</div>`;
+          } else if (diffDays === 1) {
+            reminderIndicator = `<div class="reminder-indicator">📅 Tomorrow</div>`;
+          } else if (diffDays <= 7) {
+            reminderIndicator = `<div class="reminder-indicator">📅 ${diffDays}d</div>`;
+          } else {
+            reminderIndicator = `<div class="reminder-indicator">📅 ${reminderDate.toLocaleDateString()}</div>`;
+          }
+        }
+        
+        noteEl.innerHTML = `
+          <div class="note-title">${title}</div>
+          <div class="note-subtitle">${subtitle}</div>
+          ${importanceDot}
+          ${reminderIndicator}
+        `;
+        
+        noteEl.addEventListener('click', () => openNote(note.id));
+        
+        // Right-click context menu
+        noteEl.addEventListener('contextmenu', (e) => {
+          console.log('Right-click detected on note:', note.id, note.title);
+          e.preventDefault();
+          e.stopPropagation();
+          showContextMenu(e, note.id, null);
+        });
+        
+        notesList.appendChild(noteEl);
+      });
+    }
+
+    // Load and display trash
+    function loadTrash() {
+      trashList.innerHTML = '';
+      
+      const trashNotes = Object.values(appData.trash)
+        .sort((a, b) => new Date(b.deletedAt) - new Date(a.deletedAt));
+      
+      trashCount.textContent = trashNotes.length;
+      
+      trashNotes.forEach(note => {
+        const trashEl = document.createElement('div');
+        trashEl.className = 'trash-item';
+        trashEl.dataset.id = note.id;
+        
+        // Calculate days left before permanent deletion
+        const deleteDate = new Date(note.deletedAt);
+        const permanentDeleteDate = new Date(deleteDate.getTime() + (7 * 24 * 60 * 60 * 1000));
+        const today = new Date();
+        const daysLeft = Math.ceil((permanentDeleteDate - today) / (1000 * 60 * 60 * 24));
+        
+        let title = note.title && note.title.trim() ? note.title.trim() : "Untitled Note";
+        if (title.length > 25) title = title.substring(0, 25) + "...";
+        
+        const deleteInfo = `Deleted ${deleteDate.toLocaleDateString()}`;
+        
+        trashEl.innerHTML = `
+          <div class="note-title">${title}</div>
+          <div class="note-subtitle">${deleteInfo}</div>
+          <div class="days-left">${daysLeft}d left</div>
+        `;
+        
+        // Right-click context menu for trash items
+        trashEl.addEventListener('contextmenu', (e) => {
+          console.log('Right-click detected on trash item:', note.id, note.title);
+          e.preventDefault();
+          e.stopPropagation();
+          showContextMenu(e, null, note.id);
+        });
+        
+        trashList.appendChild(trashEl);
+      });
+    }
+
+    // Move note to trash
+    function moveToTrash(noteId) {
+      console.log('moveToTrash called with noteId:', noteId);
+      const note = appData.notes[noteId];
+      console.log('Found note:', note);
+      
+      if (!note) {
+        console.log('Note not found in appData.notes');
+        return;
+      }
+      
+      const noteTitle = note.title || 'Untitled Note';
+      console.log('Moving to trash:', noteTitle);
+      
+      // Add deletion timestamp
+      note.deletedAt = new Date().toISOString();
+      
+      // Move to trash
+      appData.trash[noteId] = note;
+      delete appData.notes[noteId];
+      
+      console.log('Note moved to trash. Current notes:', Object.keys(appData.notes));
+      console.log('Current trash:', Object.keys(appData.trash));
+      
+      // Clear editor if this was the current note
+      if (currentNoteId === noteId) {
+        currentNoteId = null;
+        noteTitleField.value = "";
+        noteEditor.innerHTML = "";
+        noteEditor.setAttribute('data-placeholder', 'Create a new note to get started...');
+        updatePriorityButtons("");
+        reminderDate.value = "";
+        console.log('Cleared editor for deleted note');
+      }
+      
+      loadNotes();
+      loadTrash();
+      console.log('Refreshed notes and trash lists');
+      console.log('Deletion completed successfully!');
+    }
+
+    // Restore note from trash
+    function restoreNote(noteId) {
+      console.log('restoreNote called with noteId:', noteId);
+      const note = appData.trash[noteId];
+      console.log('Found note in trash:', note);
+      
+      if (!note) {
+        console.log('Note not found in appData.trash');
+        return;
+      }
+      
+      const noteTitle = note.title || 'Untitled Note';
+      console.log('Restoring note:', noteTitle);
+      
+      // Remove deletion timestamp
+      delete note.deletedAt;
+      
+      // Move back to notes
+      appData.notes[noteId] = note;
+      delete appData.trash[noteId];
+      
+      console.log('Note restored. Current notes:', Object.keys(appData.notes));
+      console.log('Current trash:', Object.keys(appData.trash));
+      
+      loadNotes();
+      loadTrash();
+      console.log('Note restoration completed successfully!');
+    }
+
+    // Delete note permanently
+    function deleteNotePermanently(noteId) {
+      console.log('deleteNotePermanently called with noteId:', noteId);
+      const note = appData.trash[noteId];
+      console.log('Found note in trash:', note);
+      
+      if (!note) {
+        console.log('Note not found in appData.trash');
+        return;
+      }
+      
+      const noteTitle = note.title || 'Untitled Note';
+      console.log('Permanently deleting note:', noteTitle);
+      
+      delete appData.trash[noteId];
+      
+      console.log('Note permanently deleted. Current trash:', Object.keys(appData.trash));
+      
+      loadTrash();
+      console.log('Permanent deletion completed successfully!');
+    }
+
+    // Clean up trash items older than 7 days
+    function cleanupOldTrash() {
+      const weekAgo = new Date(Date.now() - (7 * 24 * 60 * 60 * 1000));
+      
+      Object.keys(appData.trash).forEach(noteId => {
+        const note = appData.trash[noteId];
+        if (note.deletedAt && new Date(note.deletedAt) < weekAgo) {
+          delete appData.trash[noteId];
+        }
+      });
+      
+      loadTrash();
+    }
+
+    // === CONTEXT MENU FUNCTIONALITY ===
+
+    function showContextMenu(e, noteId = null, trashId = null) {
+      console.log('showContextMenu called with noteId:', noteId, 'trashId:', trashId);
+      
+      contextNoteId = noteId;
+      contextTrashId = trashId;
+      
+      console.log('Set contextNoteId to:', contextNoteId);
+      console.log('Set contextTrashId to:', contextTrashId);
+      
+      // Get all menu elements
+      const noteItems = [ctxDate, ctxRemind, ctxDeleteNote];
+      const priorityItems = [priorityRow];
+      const trashItems = [ctxRestoreNote, ctxDeletePermanently];
+      const dividers = document.querySelectorAll('.context-menu-divider');
+      
+      if (noteId && !trashId) {
+        console.log('Showing note context menu');
+        // Show note options, hide trash options
+        noteItems.forEach(item => item.style.display = 'block');
+        priorityItems.forEach(item => item.style.display = 'flex');
+        trashItems.forEach(item => item.style.display = 'none');
+        dividers.forEach(div => div.style.display = 'block');
+      } else if (trashId && !noteId) {
+        console.log('Showing trash context menu');
+        // Show trash options, hide note options
+        noteItems.forEach(item => item.style.display = 'none');
+        priorityItems.forEach(item => item.style.display = 'none');
+        trashItems.forEach(item => item.style.display = 'block');
+        dividers.forEach(div => div.style.display = 'none');
+      } else {
+        console.log('Invalid menu combination, hiding');
+        // Hide all if invalid combination
+        hideContextMenu();
+        return;
+      }
+      
+      contextMenu.style.display = 'block';
+      contextMenu.style.left = e.pageX + 'px';
+      contextMenu.style.top = e.pageY + 'px';
+      
+      // Adjust position if menu would go off screen
+      const rect = contextMenu.getBoundingClientRect();
+      if (rect.right > window.innerWidth) {
+        contextMenu.style.left = (e.pageX - rect.width) + 'px';
+      }
+      if (rect.bottom > window.innerHeight) {
+        contextMenu.style.top = (e.pageY - rect.height) + 'px';
+      }
+      
+      console.log('Context menu positioned and shown');
+    }
+
+    function hideContextMenu() {
+      contextMenu.style.display = 'none';
+      contextNoteId = null;
+      contextTrashId = null;
+      console.log('Context menu hidden and IDs cleared');
+    }
+
+    function insertDateIntoNote(noteId) {
+      const note = appData.notes[noteId];
+      if (!note) return;
+      
+      const today = new Date().toLocaleDateString('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric'
+      });
+      
+      // Insert at beginning of note with a line break
+      const existingContent = note.content || '';
+      if (existingContent) {
+        note.content = `<p><strong>${today}</strong></p>${existingContent}`;
+      } else {
+        note.content = `<p><strong>${today}</strong></p><p></p>`;
+      }
+      
+      note.updated = new Date().toISOString();
+      
+      saveData(); // Save after inserting date
+      
+      // If this is the current note, update the editor
+      if (currentNoteId === noteId) {
+        noteEditor.innerHTML = note.content;
+      }
+      
+      loadNotes();
+    }
+
+    function setReminder(noteId) {
+      // Open the note first to access toolbar
+      if (noteId !== currentNoteId) {
+        openNote(noteId);
+      }
+      
+      // Focus the reminder date input in toolbar
+      setTimeout(() => {
+        reminderDate.style.border = '2px solid #007bff';
+        reminderDate.style.boxShadow = '0 0 0 0.2rem rgba(0,123,255,.25)';
+        reminderDate.focus();
+        
+        // Reset styling after focus
+        setTimeout(() => {
+          reminderDate.style.border = '';
+          reminderDate.style.boxShadow = '';
+        }, 3000);
+      }, 100);
+    }
+
+    function setPriority(noteId, priority) {
+      const note = appData.notes[noteId];
+      if (!note) return;
+      
+      note.importance = priority;
+      note.updated = new Date().toISOString();
+      
+      saveData(); // Save after setting priority
+      
+      // If this is the current note, update the controls
+      if (currentNoteId === noteId) {
+        updatePriorityButtons(priority);
+      }
+      
+      loadNotes();
+    }
+
+    // Context menu event listeners
+    ctxDate.addEventListener('click', (e) => {
+      e.stopPropagation();
+      console.log('Date clicked, contextNoteId:', contextNoteId);
+      if (contextNoteId) {
+        insertDateIntoNote(contextNoteId);
+        hideContextMenu();
+      }
+    });
+
+    ctxRemind.addEventListener('click', (e) => {
+      e.stopPropagation();
+      console.log('Remind clicked, contextNoteId:', contextNoteId);
+      if (contextNoteId) {
+        setReminder(contextNoteId);
+        hideContextMenu();
+      }
+    });
+
+    ctxDeleteNote.addEventListener('click', (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      console.log('Delete clicked, contextNoteId:', contextNoteId);
+      
+      if (contextNoteId) {
+        console.log('Attempting to delete note:', contextNoteId);
+        
+        // Get note title for confirmation
+        const note = appData.notes[contextNoteId];
+        const noteTitle = note ? (note.title || 'Untitled Note') : 'Unknown Note';
+        
+        // Simple confirmation using a more reliable approach
+        const shouldDelete = window.confirm(`Move "${noteTitle}" to trash?`);
+        console.log('Confirmation result:', shouldDelete);
+        
+        if (shouldDelete) {
+          moveToTrash(contextNoteId);
+        } else {
+          console.log('User cancelled deletion');
+        }
+        
+        hideContextMenu();
+      } else {
+        console.log('No contextNoteId available for deletion');
+      }
+    });
+
+    // Priority icon event listeners
+    ctxPriorityNone.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (contextNoteId) {
+        setPriority(contextNoteId, '');
+        hideContextMenu();
+      }
+    });
+
+    ctxPriorityLow.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (contextNoteId) {
+        setPriority(contextNoteId, 'low');
+        hideContextMenu();
+      }
+    });
+
+    ctxPriorityMedium.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (contextNoteId) {
+        setPriority(contextNoteId, 'medium');
+        hideContextMenu();
+      }
+    });
+
+    ctxPriorityHigh.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (contextNoteId) {
+        setPriority(contextNoteId, 'high');
+        hideContextMenu();
+      }
+    });
+
+    // Trash context menu event listeners
+    ctxRestoreNote.addEventListener('click', (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      console.log('Restore clicked, contextTrashId:', contextTrashId);
+      
+      if (contextTrashId) {
+        console.log('Attempting to restore note:', contextTrashId);
+        
+        // Get note title for confirmation
+        const note = appData.trash[contextTrashId];
+        const noteTitle = note ? (note.title || 'Untitled Note') : 'Unknown Note';
+        
+        // Simple confirmation
+        const shouldRestore = window.confirm(`Restore "${noteTitle}" from trash?`);
+        console.log('Restoration confirmation result:', shouldRestore);
+        
+        if (shouldRestore) {
+          restoreNote(contextTrashId);
+        } else {
+          console.log('User cancelled restoration');
+        }
+        
+        hideContextMenu();
+      } else {
+        console.log('No contextTrashId available for restoration');
+      }
+    });
+
+    ctxDeletePermanently.addEventListener('click', (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      console.log('Permanent delete clicked, contextTrashId:', contextTrashId);
+      
+      if (contextTrashId) {
+        console.log('Attempting to permanently delete note:', contextTrashId);
+        
+        // Get note title for confirmation
+        const note = appData.trash[contextTrashId];
+        const noteTitle = note ? (note.title || 'Untitled Note') : 'Unknown Note';
+        
+        // Strong confirmation for permanent deletion
+        const shouldDelete = window.confirm(`Permanently delete "${noteTitle}"? This cannot be undone.`);
+        console.log('Permanent deletion confirmation result:', shouldDelete);
+        
+        if (shouldDelete) {
+          deleteNotePermanently(contextTrashId);
+        } else {
+          console.log('User cancelled permanent deletion');
+        }
+        
+        hideContextMenu();
+      } else {
+        console.log('No contextTrashId available for permanent deletion');
+      }
+    });
+
+    // Hide context menu when clicking elsewhere
+    document.addEventListener('click', (e) => {
+      if (!contextMenu.contains(e.target)) {
+        hideContextMenu();
+      }
+    });
+
+    // Hide context menu on scroll
+    document.addEventListener('scroll', hideContextMenu);
+    
+    // Hide context menu on escape key
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        hideContextMenu();
+      }
+    });
+
+    // Auto-cleanup trash every hour and on startup
+    setInterval(cleanupOldTrash, 60 * 60 * 1000);
+    
+    // Also run cleanup on page visibility change (when user returns to tab)
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) {
+        cleanupOldTrash();
+      }
+    });
+
+    // Initialize with welcome content
+    function initializeWelcome() {
+      // Create welcome note with rich content
+      const noteId = Date.now().toString();
+      const today = new Date();
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      
+      appData.notes[noteId] = {
+        id: noteId,
+        title: "Welcome to Simple Notes!",
+        content: `<p>This enhanced note-taking app includes:</p>
+<ul>
+<li>💾 <strong>Data persistence</strong> - Your notes are automatically saved to localStorage</li>
+<li>🔄 <strong>Smart deletion</strong> - Deleting opens the next available note automatically</li>
+<li>📋 <strong>Clean interface</strong> - No project clutter, just focused note-taking</li>
+<li>📅 <strong>Date insertion</strong> - Click "Date" to add today's date</li>
+<li>🎨 <strong>Priority color coding</strong> - Set note importance levels (⚪🟢🟠🔴)</li>
+<li>⏰ <strong>Reminder system</strong> - Never forget important notes</li>
+<li>🗑️ <strong>Safe deletion</strong> - Trash bin with 7-day auto-recovery</li>
+<li>♻️ <strong>Auto-cleanup</strong> - Trash automatically empties after a week</li>
+<li>♿ <strong>Accessibility</strong> - Screen reader friendly with proper ARIA labels</li>
+<li>🎨 <strong>Rich formatting</strong> - Toggle preserves formatting when re-enabled</li>
+</ul>
+
+<p><u>How to use:</u></p>
+<ul>
+<li>Use the <strong>title field</strong> at the top for clear note naming</li>
+<li>Toggle <strong>📝 Formatting</strong> on/off (preserves rich content when re-enabled)</li>
+<li>Right-click notes: <strong>📅 Date</strong>, <strong>🔔 Remind Me</strong>, <strong>🗑️ Delete</strong>, priorities</li>
+<li>Right-click trash items: <strong>♻️ Restore</strong> or <strong>⚠️ Delete Permanently</strong></li>
+<li>Use <strong>Ctrl+Backspace</strong> for quick deletion</li>
+<li>Press <strong>Escape</strong> to close context menus</li>
+<li><strong>Advanced:</strong> Shift+click "Empty Trash" to test auto-cleanup (1 minute instead of 7 days)</li>
+</ul>
+
+<p style="text-align: center;"><strong>Professional-grade note-taking with persistence and smart UX!</strong></p>`,
+        created: new Date().toISOString(),
+        updated: new Date().toISOString(),
+        importance: "medium",
+        reminder: tomorrow.toISOString().split('T')[0] // Tomorrow's date
+      };
+      
+      saveData(); // Save welcome note
+      loadNotes();
+      openNote(noteId);
+    }
+
+    // Initialize
+    if (Object.keys(appData.notes).length === 0) {
+      initializeWelcome();
+    }
+  </script>
+</body>
+</html>
