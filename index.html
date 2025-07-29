@@ -139,6 +139,11 @@
             transform: translateY(-2px);
         }
         
+        .header-btn.active {
+            background: rgba(255, 255, 255, 0.4);
+            font-weight: 600;
+        }
+        
         .bulk-actions {
             background: rgba(255, 255, 255, 0.1);
             border-radius: 8px;
@@ -253,6 +258,13 @@
             box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
         }
         
+        .subject-item.active {
+            background: linear-gradient(to right, #e0e7ff, #ffffff);
+            border-left-color: var(--primary);
+            transform: scale(1.02);
+            box-shadow: 0 8px 25px rgba(67, 97, 238, 0.2);
+        }
+        
         .subject-icon {
             font-size: 20px;
             color: var(--primary);
@@ -326,6 +338,29 @@
             border-color: var(--primary);
             background: linear-gradient(to right, #f0f4ff, #ffffff);
             box-shadow: 0 6px 16px rgba(67, 97, 238, 0.2);
+        }
+        
+        .note-item.selected {
+            border-color: var(--success);
+            background: linear-gradient(to right, #e6fffa, #ffffff);
+            box-shadow: 0 6px 16px rgba(76, 201, 240, 0.2);
+        }
+        
+        .note-item.selected::before {
+            content: '✓';
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: var(--success);
+            color: white;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: bold;
         }
         
         .note-title {
@@ -677,6 +712,13 @@
             background: #fee2e2;
             transform: scale(1.02);
             box-shadow: 0 8px 25px rgba(230, 57, 70, 0.2);
+        }
+        
+        /* Search Results Highlight */
+        .search-highlight {
+            background-color: #fff3cd;
+            padding: 2px 4px;
+            border-radius: 3px;
         }
         
         /* Modals & Notifications */
@@ -1090,6 +1132,17 @@
                 <button class="header-btn" id="show-all-notes">
                     <i class="fas fa-sticky-note"></i> All Notes
                 </button>
+            </div>
+            
+            <div class="bulk-actions" id="bulk-actions">
+                <div class="bulk-action-buttons">
+                    <button class="bulk-btn delete-btn" id="bulk-delete">
+                        <i class="fas fa-trash"></i> Delete Selected
+                    </button>
+                    <button class="bulk-btn cancel-btn" id="cancel-selection">
+                        <i class="fas fa-times"></i> Cancel
+                    </button>
+                </div>
             </div>
         </div>
         
@@ -1701,6 +1754,8 @@
             currentSubjectId: null,
             isSelectionMode: false,
             selectedNoteIds: new Set(),
+            searchQuery: '',
+            filteredNotes: [],
             editingSubjectId: null,
             contextNoteId: null,
             
@@ -1710,29 +1765,36 @@
                 this.renderUI();
             },
             
-            // Load data from localStorage
+            // Load data from storage
             loadData() {
-                const savedData = localStorage.getItem('proNotesData');
-                if (savedData) {
-                    const parsed = JSON.parse(savedData);
-                    this.subjects = parsed.subjects || this.subjects;
-                    this.notes = parsed.notes || [];
-                    this.trash = parsed.trash || [];
-                    this.currentNoteId = parsed.currentNoteId || null;
-                    this.currentSubjectId = parsed.currentSubjectId || null;
+                try {
+                    const savedData = JSON.parse(localStorage.getItem('proNotesData') || '{}');
+                    this.subjects = savedData.subjects || this.subjects;
+                    this.notes = savedData.notes || [];
+                    this.trash = savedData.trash || [];
+                    this.currentNoteId = savedData.currentNoteId || null;
+                    this.currentSubjectId = savedData.currentSubjectId || null;
+                } catch (error) {
+                    console.error('Error loading data:', error);
+                    this.showNotification('Error loading saved data', 'error');
                 }
             },
             
-            // Save data to localStorage
+            // Save data to storage
             saveData() {
-                const data = {
-                    subjects: this.subjects,
-                    notes: this.notes,
-                    trash: this.trash,
-                    currentNoteId: this.currentNoteId,
-                    currentSubjectId: this.currentSubjectId
-                };
-                localStorage.setItem('proNotesData', JSON.stringify(data));
+                try {
+                    const data = {
+                        subjects: this.subjects,
+                        notes: this.notes,
+                        trash: this.trash,
+                        currentNoteId: this.currentNoteId,
+                        currentSubjectId: this.currentSubjectId
+                    };
+                    localStorage.setItem('proNotesData', JSON.stringify(data));
+                } catch (error) {
+                    console.error('Error saving data:', error);
+                    this.showNotification('Error saving data', 'error');
+                }
             },
             
             // Create a new note
@@ -1741,7 +1803,7 @@
                 const newNote = {
                     id,
                     title,
-                    content,
+                    content: DOMPurify.sanitize(content),
                     created: new Date().toISOString().split('T')[0],
                     updated: new Date().toISOString().split('T')[0],
                     importance: "normal",
@@ -1766,7 +1828,7 @@
                 const newNote = {
                     id,
                     title: template.title + ' ' + new Date().toLocaleDateString(),
-                    content: template.content,
+                    content: DOMPurify.sanitize(template.content),
                     created: new Date().toISOString().split('T')[0],
                     updated: new Date().toISOString().split('T')[0],
                     importance: "normal",
@@ -1789,6 +1851,11 @@
             updateNote(id, updates) {
                 const note = this.notes.find(n => n.id === id);
                 if (!note) return;
+                
+                // Sanitize content if it's being updated
+                if (updates.content) {
+                    updates.content = DOMPurify.sanitize(updates.content);
+                }
                 
                 Object.assign(note, updates, {
                     updated: new Date().toISOString().split('T')[0]
@@ -1818,6 +1885,16 @@
                 this.saveData();
             },
             
+            // Bulk delete selected notes
+            bulkDeleteNotes() {
+                const selectedIds = Array.from(this.selectedNoteIds);
+                selectedIds.forEach(id => this.deleteNote(id));
+                this.selectedNoteIds.clear();
+                this.exitSelectionMode();
+                this.renderUI();
+                this.showNotification(`${selectedIds.length} notes moved to trash`, 'warning');
+            },
+            
             // Restore a note from trash
             restoreNote(id) {
                 const noteIndex = this.trash.findIndex(n => n.id === id);
@@ -1845,7 +1922,7 @@
                 const id = 'subj-' + Date.now();
                 const newSubject = {
                     id,
-                    name,
+                    name: DOMPurify.sanitize(name),
                     notes: []
                 };
                 
@@ -1858,7 +1935,7 @@
             renameSubject(subjectId, newName) {
                 const subject = this.subjects.find(s => s.id === subjectId);
                 if (subject) {
-                    subject.name = newName;
+                    subject.name = DOMPurify.sanitize(newName);
                     this.saveData();
                     return true;
                 }
@@ -1919,19 +1996,93 @@
             
             // Remove note from subject
             removeNoteFromSubject(noteId, subjectId) {
-                const note = this.notes.find(n => n.id === noteId);
                 const subject = this.subjects.find(s => s.id === subjectId);
                 
-                if (!note || !subject) return false;
+                if (!subject) return false;
                 
                 const noteIndex = subject.notes.indexOf(noteId);
                 if (noteIndex !== -1) {
                     subject.notes.splice(noteIndex, 1);
                 }
                 
-                note.subjectId = null;
+                // Only update note.subjectId if note still exists (for non-deletion scenarios)
+                const note = this.notes.find(n => n.id === noteId);
+                if (note) {
+                    note.subjectId = null;
+                }
+                
                 this.saveData();
                 return true;
+            },
+            
+            // Search functionality
+            performSearch(query) {
+                this.searchQuery = query.toLowerCase();
+                
+                if (!this.searchQuery) {
+                    this.filteredNotes = [];
+                    this.renderNotes();
+                    return;
+                }
+                
+                this.filteredNotes = this.notes.filter(note => {
+                    const titleMatch = note.title.toLowerCase().includes(this.searchQuery);
+                    const contentMatch = note.content.toLowerCase().includes(this.searchQuery);
+                    const tagMatch = note.tags.some(tag => tag.toLowerCase().includes(this.searchQuery));
+                    
+                    return titleMatch || contentMatch || tagMatch;
+                });
+                
+                this.renderNotes();
+                this.showNotification(`Found ${this.filteredNotes.length} notes matching "${query}"`);
+            },
+            
+            // Toggle selection mode
+            toggleSelectionMode() {
+                this.isSelectionMode = !this.isSelectionMode;
+                
+                if (!this.isSelectionMode) {
+                    this.exitSelectionMode();
+                }
+                
+                this.renderUI();
+            },
+            
+            // Exit selection mode
+            exitSelectionMode() {
+                this.isSelectionMode = false;
+                this.selectedNoteIds.clear();
+                document.getElementById('select-mode').classList.remove('active');
+                document.getElementById('bulk-actions').classList.remove('active');
+            },
+            
+            // Toggle note selection
+            toggleNoteSelection(noteId) {
+                if (this.selectedNoteIds.has(noteId)) {
+                    this.selectedNoteIds.delete(noteId);
+                } else {
+                    this.selectedNoteIds.add(noteId);
+                }
+                
+                this.renderNotes();
+                this.updateBulkActions();
+            },
+            
+            // Update bulk actions visibility
+            updateBulkActions() {
+                const bulkActions = document.getElementById('bulk-actions');
+                if (this.selectedNoteIds.size > 0) {
+                    bulkActions.classList.add('active');
+                } else {
+                    bulkActions.classList.remove('active');
+                }
+            },
+            
+            // Show all notes (remove subject filter)
+            showAllNotes() {
+                this.currentSubjectId = null;
+                this.renderUI();
+                this.showNotification('Showing all notes');
             },
             
             // Render UI
@@ -1940,6 +2091,7 @@
                 this.renderNotes();
                 this.renderTrash();
                 this.renderEditor();
+                this.updateToolbarPriority();
             },
             
             // Render subjects
@@ -1987,20 +2139,26 @@
                 const container = document.getElementById('notes-list');
                 container.innerHTML = '';
                 
-                let notesToRender = [...this.notes];
+                let notesToRender = this.searchQuery ? this.filteredNotes : [...this.notes];
                 
-                // Filter by current subject if set
-                if (this.currentSubjectId) {
+                // Filter by current subject if set and not searching
+                if (this.currentSubjectId && !this.searchQuery) {
                     notesToRender = notesToRender.filter(note => 
                         note.subjectId === this.currentSubjectId
                     );
                 }
                 
                 if (notesToRender.length === 0) {
+                    const emptyMessage = this.searchQuery 
+                        ? `No notes found for "${this.searchQuery}"` 
+                        : this.currentSubjectId 
+                            ? 'No notes in this subject yet.' 
+                            : 'No notes yet. Create your first note!';
+                            
                     container.innerHTML = `
                         <div class="empty-state">
                             <i class="fas fa-sticky-note"></i>
-                            <p>No notes in this subject yet.</p>
+                            <p>${emptyMessage}</p>
                         </div>
                     `;
                     return;
@@ -2010,21 +2168,39 @@
                     new Date(b.updated) - new Date(a.updated)
                 ).forEach(note => {
                     const noteEl = document.createElement('div');
-                    noteEl.className = `note-item ${note.id === this.currentNoteId ? 'active' : ''}`;
+                    let noteClasses = `note-item ${note.id === this.currentNoteId ? 'active' : ''}`;
+                    
+                    if (this.isSelectionMode && this.selectedNoteIds.has(note.id)) {
+                        noteClasses += ' selected';
+                    }
+                    
+                    noteEl.className = noteClasses;
                     noteEl.dataset.id = note.id;
-                    noteEl.draggable = true;
+                    noteEl.draggable = !this.isSelectionMode;
                     
                     const tagsHtml = note.tags.map(tag => 
                         `<span class="note-tag">${tag}</span>`
                     ).join('');
                     
-                    const contentPreview = note.content 
-                        ? note.content.replace(/<[^>]*>/g, '').substring(0, 100) + '...' 
+                    let contentPreview = note.content 
+                        ? note.content.replace(/<[^>]*>/g, '').substring(0, 100) + (note.content.length > 100 ? '...' : '')
                         : 'No content';
+                    
+                    // Highlight search terms
+                    if (this.searchQuery && contentPreview.toLowerCase().includes(this.searchQuery)) {
+                        const regex = new RegExp(`(${this.searchQuery})`, 'gi');
+                        contentPreview = contentPreview.replace(regex, '<span class="search-highlight">$1</span>');
+                    }
+                    
+                    let noteTitle = note.title;
+                    if (this.searchQuery && noteTitle.toLowerCase().includes(this.searchQuery)) {
+                        const regex = new RegExp(`(${this.searchQuery})`, 'gi');
+                        noteTitle = noteTitle.replace(regex, '<span class="search-highlight">$1</span>');
+                    }
                     
                     noteEl.innerHTML = `
                         <div class="note-title">
-                            ${note.title}
+                            ${noteTitle}
                             <span class="importance-dot ${note.importance}"></span>
                         </div>
                         <div class="note-subtitle">
@@ -2090,6 +2266,22 @@
                 }
             },
             
+            // Update toolbar priority buttons
+            updateToolbarPriority() {
+                const priorityButtons = document.querySelectorAll('.priority-btn');
+                priorityButtons.forEach(btn => btn.classList.remove('active'));
+                
+                if (this.currentNoteId) {
+                    const note = this.notes.find(n => n.id === this.currentNoteId);
+                    if (note) {
+                        const activeButton = document.getElementById(`priority-${note.importance}`);
+                        if (activeButton) {
+                            activeButton.classList.add('active');
+                        }
+                    }
+                }
+            },
+            
             // Render templates
             renderTemplates() {
                 const container = document.getElementById('templates-container');
@@ -2142,14 +2334,89 @@
         };
 
         // =====================================================
+        // Editor Functionality
+        // =====================================================
+        const EditorTools = {
+            // Apply bold formatting
+            toggleBold() {
+                document.execCommand('bold', false, null);
+                this.updateToolbarState();
+            },
+            
+            // Apply italic formatting
+            toggleItalic() {
+                document.execCommand('italic', false, null);
+                this.updateToolbarState();
+            },
+            
+            // Insert bullet list
+            insertBulletList() {
+                document.execCommand('insertUnorderedList', false, null);
+                this.updateToolbarState();
+            },
+            
+            // Insert current date
+            insertDate() {
+                const now = new Date();
+                const dateStr = now.toLocaleDateString();
+                document.execCommand('insertText', false, dateStr);
+            },
+            
+            // Clear editor content
+            clearEditor() {
+                if (confirm('Are you sure you want to clear all content?')) {
+                    const editor = document.getElementById('note-editor');
+                    editor.innerHTML = '';
+                    
+                    if (AppState.currentNoteId) {
+                        AppState.updateNote(AppState.currentNoteId, { content: '' });
+                    }
+                    
+                    AppState.showNotification('Editor cleared');
+                }
+            },
+            
+            // Update toolbar button states
+            updateToolbarState() {
+                const buttons = {
+                    'bold-btn': document.queryCommandState('bold'),
+                    'italic-btn': document.queryCommandState('italic'),
+                    'bullet-btn': document.queryCommandState('insertUnorderedList')
+                };
+                
+                Object.entries(buttons).forEach(([id, state]) => {
+                    const button = document.getElementById(id);
+                    if (button) {
+                        button.classList.toggle('active', state);
+                    }
+                });
+            }
+        };
+
+        // =====================================================
         // Event Handling
         // =====================================================
         const setupEventListeners = () => {
+            // Search functionality
+            const searchInput = document.getElementById('search-notes');
+            searchInput.addEventListener('input', (e) => {
+                AppState.performSearch(e.target.value);
+            });
+            
+            // Clear search on escape
+            searchInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    e.target.value = '';
+                    AppState.performSearch('');
+                }
+            });
+            
             // New note button
             document.getElementById('new-note').addEventListener('click', () => {
                 AppState.createNote();
                 AppState.renderUI();
                 AppState.showNotification('New note created');
+                document.getElementById('note-title-field').focus();
             });
             
             // Templates button
@@ -2171,6 +2438,7 @@
                     AppState.renderUI();
                     AppState.showNotification(`"${template.title}" template applied`);
                     document.getElementById('templates-modal').classList.remove('active');
+                    document.getElementById('note-title-field').focus();
                 }
             });
             
@@ -2179,18 +2447,57 @@
                 document.getElementById('templates-modal').classList.remove('active');
             });
             
+            // Selection mode toggle
+            document.getElementById('select-mode').addEventListener('click', () => {
+                AppState.toggleSelectionMode();
+                const button = document.getElementById('select-mode');
+                button.classList.toggle('active', AppState.isSelectionMode);
+                
+                if (AppState.isSelectionMode) {
+                    AppState.showNotification('Selection mode enabled - click notes to select');
+                } else {
+                    AppState.showNotification('Selection mode disabled');
+                }
+            });
+            
+            // Show all notes button
+            document.getElementById('show-all-notes').addEventListener('click', () => {
+                AppState.showAllNotes();
+            });
+            
+            // Bulk delete
+            document.getElementById('bulk-delete').addEventListener('click', () => {
+                if (AppState.selectedNoteIds.size === 0) return;
+                
+                const count = AppState.selectedNoteIds.size;
+                if (confirm(`Are you sure you want to delete ${count} selected note${count > 1 ? 's' : ''}?`)) {
+                    AppState.bulkDeleteNotes();
+                }
+            });
+            
+            // Cancel selection
+            document.getElementById('cancel-selection').addEventListener('click', () => {
+                AppState.exitSelectionMode();
+                AppState.renderUI();
+                AppState.showNotification('Selection cancelled');
+            });
+            
             // Add subject button
             document.getElementById('add-subject-btn').addEventListener('click', () => {
                 document.getElementById('subject-modal-title').innerHTML = '<i class="fas fa-folder"></i> Add New Subject';
                 document.getElementById('subject-name').value = '';
                 AppState.editingSubjectId = null;
                 document.getElementById('subject-modal').classList.add('active');
+                document.getElementById('subject-name').focus();
             });
             
             // Save subject button
             document.getElementById('save-subject-btn').addEventListener('click', () => {
                 const subjectName = document.getElementById('subject-name').value.trim();
-                if (!subjectName) return;
+                if (!subjectName) {
+                    AppState.showNotification('Please enter a subject name', 'error');
+                    return;
+                }
                 
                 if (AppState.editingSubjectId) {
                     AppState.renameSubject(AppState.editingSubjectId, subjectName);
@@ -2214,6 +2521,13 @@
                 document.getElementById('subject-modal').classList.remove('active');
             });
             
+            // Subject name enter key
+            document.getElementById('subject-name').addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    document.getElementById('save-subject-btn').click();
+                }
+            });
+            
             // Subject edit and delete
             document.getElementById('subjects-container').addEventListener('click', (e) => {
                 const subjectItem = e.target.closest('.subject-item');
@@ -2223,37 +2537,35 @@
                 
                 // Edit subject
                 if (e.target.closest('.edit-subject-btn')) {
+                    e.stopPropagation();
                     const subject = AppState.subjects.find(s => s.id === subjectId);
                     if (subject) {
                         document.getElementById('subject-modal-title').innerHTML = '<i class="fas fa-folder"></i> Rename Subject';
                         document.getElementById('subject-name').value = subject.name;
                         AppState.editingSubjectId = subjectId;
                         document.getElementById('subject-modal').classList.add('active');
+                        document.getElementById('subject-name').focus();
                     }
+                    return;
                 }
                 
                 // Delete subject
                 if (e.target.closest('.delete-subject-btn')) {
-                    if (confirm('Are you sure you want to delete this subject? Notes will be moved to unassigned.')) {
+                    e.stopPropagation();
+                    const subject = AppState.subjects.find(s => s.id === subjectId);
+                    if (confirm(`Are you sure you want to delete "${subject.name}"? Notes will be moved to unassigned.`)) {
                         AppState.deleteSubject(subjectId);
                         AppState.renderUI();
                         AppState.showNotification('Subject deleted');
                     }
+                    return;
                 }
-            });
-            
-            // Subject click to filter notes
-            document.getElementById('subjects-container').addEventListener('click', (e) => {
-                const subjectItem = e.target.closest('.subject-item');
-                if (!subjectItem) return;
                 
-                // Ignore if clicking on action buttons
-                if (e.target.closest('.subject-action-btn')) return;
-                
-                const subjectId = subjectItem.dataset.id;
+                // Select subject (filter notes)
                 AppState.currentSubjectId = subjectId;
                 AppState.renderUI();
-                AppState.showNotification(`Showing notes for: ${AppState.subjects.find(s => s.id === subjectId).name}`);
+                const subject = AppState.subjects.find(s => s.id === subjectId);
+                AppState.showNotification(`Showing notes for: ${subject.name}`);
             });
             
             // Toggle sidebar on mobile
@@ -2267,8 +2579,17 @@
                 if (!noteItem) return;
                 
                 const noteId = noteItem.dataset.id;
-                AppState.currentNoteId = noteId;
-                AppState.renderUI();
+                
+                if (AppState.isSelectionMode) {
+                    AppState.toggleNoteSelection(noteId);
+                } else {
+                    AppState.currentNoteId = noteId;
+                    AppState.renderUI();
+                    // Focus editor on mobile
+                    if (window.innerWidth <= 768) {
+                        document.getElementById('note-title-field').focus();
+                    }
+                }
             });
             
             // Empty trash button
@@ -2297,15 +2618,63 @@
             document.getElementById('note-title-field').addEventListener('input', (e) => {
                 if (AppState.currentNoteId) {
                     AppState.updateNote(AppState.currentNoteId, { title: e.target.value });
-                    AppState.renderUI();
+                    AppState.renderNotes(); // Re-render to show updated title
                 }
             });
             
             // Note editor input
-            document.getElementById('note-editor').addEventListener('input', (e) => {
+            const editor = document.getElementById('note-editor');
+            editor.addEventListener('input', (e) => {
                 if (AppState.currentNoteId) {
                     AppState.updateNote(AppState.currentNoteId, { content: e.target.innerHTML });
                 }
+            });
+            
+            // Editor toolbar events
+            document.getElementById('bold-btn').addEventListener('click', () => {
+                EditorTools.toggleBold();
+            });
+            
+            document.getElementById('italic-btn').addEventListener('click', () => {
+                EditorTools.toggleItalic();
+            });
+            
+            document.getElementById('bullet-btn').addEventListener('click', () => {
+                EditorTools.insertBulletList();
+            });
+            
+            document.getElementById('date-btn').addEventListener('click', () => {
+                EditorTools.insertDate();
+            });
+            
+            document.getElementById('clear-btn').addEventListener('click', () => {
+                EditorTools.clearEditor();
+            });
+            
+            // Priority buttons
+            document.querySelectorAll('.priority-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    if (!AppState.currentNoteId) return;
+                    
+                    const priority = btn.id.replace('priority-', '');
+                    AppState.updateNote(AppState.currentNoteId, { importance: priority });
+                    AppState.renderUI();
+                    AppState.showNotification(`Priority set to ${priority}`);
+                });
+            });
+            
+            // Remind me button (placeholder)
+            document.getElementById('remind-me-btn').addEventListener('click', () => {
+                AppState.showNotification('Reminder feature coming soon!', 'warning');
+            });
+            
+            // Editor selection change to update toolbar
+            editor.addEventListener('selectionchange', () => {
+                EditorTools.updateToolbarState();
+            });
+            
+            editor.addEventListener('keyup', () => {
+                EditorTools.updateToolbarState();
             });
             
             // Context menu handling
@@ -2313,6 +2682,80 @@
             
             // Drag and drop handling
             setupDragAndDrop();
+            
+            // Keyboard shortcuts
+            setupKeyboardShortcuts();
+            
+            // Modal overlay clicks
+            document.querySelectorAll('.modal-overlay').forEach(overlay => {
+                overlay.addEventListener('click', (e) => {
+                    if (e.target === overlay) {
+                        overlay.classList.remove('active');
+                    }
+                });
+            });
+        };
+
+        // =====================================================
+        // Keyboard Shortcuts
+        // =====================================================
+        const setupKeyboardShortcuts = () => {
+            document.addEventListener('keydown', (e) => {
+                // Ctrl/Cmd + N: New note
+                if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
+                    e.preventDefault();
+                    document.getElementById('new-note').click();
+                }
+                
+                // Ctrl/Cmd + S: Save (already auto-saves, just show notification)
+                if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                    e.preventDefault();
+                    AppState.showNotification('Auto-saved!');
+                }
+                
+                // Ctrl/Cmd + F: Focus search
+                if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
+                    e.preventDefault();
+                    document.getElementById('search-notes').focus();
+                }
+                
+                // Ctrl/Cmd + D: Delete current note
+                if ((e.ctrlKey || e.metaKey) && e.key === 'd') {
+                    e.preventDefault();
+                    if (AppState.currentNoteId) {
+                        AppState.deleteNote(AppState.currentNoteId);
+                        AppState.renderUI();
+                        AppState.showNotification('Note moved to trash', 'warning');
+                    }
+                }
+                
+                // Escape: Exit selection mode or close modals
+                if (e.key === 'Escape') {
+                    if (AppState.isSelectionMode) {
+                        AppState.exitSelectionMode();
+                        AppState.renderUI();
+                    }
+                    
+                    document.querySelectorAll('.modal-overlay.active').forEach(modal => {
+                        modal.classList.remove('active');
+                    });
+                }
+                
+                // Ctrl/Cmd + A: Select all notes (in selection mode)
+                if ((e.ctrlKey || e.metaKey) && e.key === 'a' && AppState.isSelectionMode) {
+                    e.preventDefault();
+                    let notesToSelect = AppState.searchQuery ? AppState.filteredNotes : [...AppState.notes];
+                    
+                    if (AppState.currentSubjectId && !AppState.searchQuery) {
+                        notesToSelect = notesToSelect.filter(note => note.subjectId === AppState.currentSubjectId);
+                    }
+                    
+                    notesToSelect.forEach(note => AppState.selectedNoteIds.add(note.id));
+                    AppState.renderNotes();
+                    AppState.updateBulkActions();
+                    AppState.showNotification(`Selected ${notesToSelect.length} notes`);
+                }
+            });
         };
 
         // =====================================================
@@ -2341,8 +2784,23 @@
                         
                         // Position context menu
                         contextMenu.style.display = 'block';
-                        contextMenu.style.left = `${e.pageX}px`;
-                        contextMenu.style.top = `${e.pageY}px`;
+                        
+                        // Calculate position to keep menu on screen
+                        const menuWidth = 200;
+                        const menuHeight = 300;
+                        let x = e.pageX;
+                        let y = e.pageY;
+                        
+                        if (x + menuWidth > window.innerWidth) {
+                            x = window.innerWidth - menuWidth - 10;
+                        }
+                        
+                        if (y + menuHeight > window.innerHeight) {
+                            y = window.innerHeight - menuHeight - 10;
+                        }
+                        
+                        contextMenu.style.left = `${x}px`;
+                        contextMenu.style.top = `${y}px`;
                     }
                 }
             });
@@ -2350,6 +2808,11 @@
             // Hide context menu when clicking elsewhere
             document.addEventListener('click', () => {
                 contextMenu.style.display = 'none';
+            });
+            
+            // Prevent context menu from closing when clicking inside it
+            contextMenu.addEventListener('click', (e) => {
+                e.stopPropagation();
             });
             
             // Delete note option
@@ -2377,6 +2840,11 @@
                         
                         AppState.notes.unshift(newNote);
                         AppState.currentNoteId = newNote.id;
+                        
+                        if (newNote.subjectId) {
+                            AppState.addNoteToSubject(newNote.id, newNote.subjectId);
+                        }
+                        
                         AppState.saveData();
                         AppState.renderUI();
                         AppState.showNotification('Note duplicated');
@@ -2403,13 +2871,15 @@
             document.getElementById('context-add-tag').addEventListener('click', () => {
                 if (AppState.contextNoteId) {
                     const tag = prompt('Enter a tag for this note:');
-                    if (tag) {
+                    if (tag && tag.trim()) {
                         const note = AppState.notes.find(n => n.id === AppState.contextNoteId);
-                        if (note && !note.tags.includes(tag)) {
-                            note.tags.push(tag);
+                        if (note && !note.tags.includes(tag.trim())) {
+                            note.tags.push(tag.trim());
                             AppState.saveData();
                             AppState.renderUI();
-                            AppState.showNotification(`Tag "${tag}" added to note`);
+                            AppState.showNotification(`Tag "${tag.trim()}" added to note`);
+                        } else if (note.tags.includes(tag.trim())) {
+                            AppState.showNotification('Tag already exists on this note', 'warning');
                         }
                     }
                     contextMenu.style.display = 'none';
@@ -2418,7 +2888,7 @@
             
             // Set reminder option
             document.getElementById('context-set-reminder').addEventListener('click', () => {
-                AppState.showNotification('Reminder set for this note');
+                AppState.showNotification('Reminder feature coming soon!', 'warning');
                 contextMenu.style.display = 'none';
             });
         };
@@ -2431,9 +2901,11 @@
             
             // Note drag start
             document.addEventListener('dragstart', (e) => {
-                if (e.target.classList.contains('note-item')) {
+                if (e.target.classList.contains('note-item') && !AppState.isSelectionMode) {
                     draggedNoteId = e.target.dataset.id;
                     e.target.classList.add('dragging');
+                    e.dataTransfer.effectAllowed = 'move';
+                    e.dataTransfer.setData('text/html', e.target.outerHTML);
                 }
             });
             
@@ -2441,22 +2913,54 @@
             document.addEventListener('dragend', (e) => {
                 if (e.target.classList.contains('note-item')) {
                     e.target.classList.remove('dragging');
+                    // Clean up any remaining drag-over classes
+                    document.querySelectorAll('.drag-over').forEach(el => {
+                        el.classList.remove('drag-over');
+                    });
                     draggedNoteId = null;
                 }
             });
             
             // Subject drag over
             document.addEventListener('dragover', (e) => {
-                if (e.target.classList.contains('subject-item') && draggedNoteId) {
+                const subjectItem = e.target.closest('.subject-item');
+                if (subjectItem && draggedNoteId) {
                     e.preventDefault();
-                    e.target.classList.add('drag-over');
+                    e.dataTransfer.dropEffect = 'move';
+                    subjectItem.classList.add('drag-over');
+                }
+                
+                const trashSection = e.target.closest('#trash-section');
+                if (trashSection && draggedNoteId) {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                    trashSection.classList.add('drag-over');
                 }
             });
             
             // Subject drag leave
             document.addEventListener('dragleave', (e) => {
-                if (e.target.classList.contains('subject-item')) {
-                    e.target.classList.remove('drag-over');
+                const subjectItem = e.target.closest('.subject-item');
+                if (subjectItem) {
+                    // Only remove if we're leaving the subject item entirely
+                    const rect = subjectItem.getBoundingClientRect();
+                    const x = e.clientX;
+                    const y = e.clientY;
+                    
+                    if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
+                        subjectItem.classList.remove('drag-over');
+                    }
+                }
+                
+                const trashSection = e.target.closest('#trash-section');
+                if (trashSection) {
+                    const rect = trashSection.getBoundingClientRect();
+                    const x = e.clientX;
+                    const y = e.clientY;
+                    
+                    if (x < rect.left || x > rect.right || y < rect.top || y > rect.bottom) {
+                        trashSection.classList.remove('drag-over');
+                    }
                 }
             });
             
@@ -2471,31 +2975,18 @@
                     
                     AppState.addNoteToSubject(draggedNoteId, subjectId);
                     AppState.renderUI();
-                    AppState.showNotification(`Note moved to ${AppState.subjects.find(s => s.id === subjectId).name}`);
+                    const subject = AppState.subjects.find(s => s.id === subjectId);
+                    AppState.showNotification(`Note moved to ${subject.name}`);
+                    return;
                 }
-            });
-            
-            // Trash drag over
-            document.getElementById('trash-section').addEventListener('dragover', (e) => {
-                e.preventDefault();
-                document.getElementById('trash-section').classList.add('drag-over');
-            });
-            
-            // Trash drag leave
-            document.getElementById('trash-section').addEventListener('dragleave', () => {
-                document.getElementById('trash-section').classList.remove('drag-over');
-            });
-            
-            // Trash drop
-            document.getElementById('trash-section').addEventListener('drop', (e) => {
-                e.preventDefault();
-                document.getElementById('trash-section').classList.remove('drag-over');
                 
-                if (draggedNoteId) {
+                const trashSection = e.target.closest('#trash-section');
+                if (trashSection && draggedNoteId) {
+                    trashSection.classList.remove('drag-over');
                     AppState.deleteNote(draggedNoteId);
                     AppState.renderUI();
                     AppState.showNotification('Note moved to trash', 'warning');
-                    draggedNoteId = null;
+                    return;
                 }
             });
         };
@@ -2504,13 +2995,34 @@
         // Initialize App
         // =====================================================
         document.addEventListener('DOMContentLoaded', () => {
-            AppState.init();
-            setupEventListeners();
-            
-            // Show welcome notification
-            setTimeout(() => {
-                AppState.showNotification('Welcome to ProNotes Advanced! Right-click notes for more options.');
-            }, 1500);
+            try {
+                AppState.init();
+                setupEventListeners();
+                
+                // Show welcome notification
+                setTimeout(() => {
+                    AppState.showNotification('Welcome to ProNotes Advanced! 📝');
+                }, 1000);
+                
+                // Show keyboard shortcuts after a delay
+                setTimeout(() => {
+                    AppState.showNotification('💡 Tip: Press Ctrl+N for new note, Ctrl+F to search!');
+                }, 4000);
+                
+            } catch (error) {
+                console.error('Error initializing app:', error);
+                document.body.innerHTML = `
+                    <div style="display: flex; align-items: center; justify-content: center; height: 100vh; text-align: center; font-family: sans-serif;">
+                        <div>
+                            <h1>❌ Error Loading ProNotes</h1>
+                            <p>There was an error loading the application. Please refresh the page.</p>
+                            <button onclick="location.reload()" style="padding: 10px 20px; margin-top: 20px; background: #4361ee; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                                Refresh Page
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }
         });
     </script>
 </body>
